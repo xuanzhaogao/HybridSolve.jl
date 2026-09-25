@@ -82,3 +82,16 @@ end
               for k in 1:nq)
     @test norm(u - ref) / norm(ref) < 1e-11   # measured 1.3e-12
 end
+
+@testset "sph_tol default translates every sphere pair" begin
+    # Cube at 1a gaps: face-diagonal pairs are 4.24a apart and body diagonals 5.2a, so
+    # HybridMD's own sph_tol = 4 drops their multipole-to-local coupling. Measured against
+    # converged LaplaceMFS.jl: sph_tol = 4 is off by 3.6e-3, sph_tol ≥ 6 agrees to 1e-13.
+    C8 = reduce(vcat, [[x y z] for x in (-1.5, 1.5) for y in (-1.5, 1.5) for z in (-1.5, 1.5)])
+    X = [0.0 0.2; 0.0 -0.1; 0.0 3.2]; Q = [1.0, -0.4]
+    T = [3.5 -3.5 0.0 1.0; 0.0 0.0 3.5 0.3; 0.0 0.0 0.0 0.1]
+    u(; kw...) = eval_exterior_pot(hybrid_solve(C8, fill(1.0, 8), fill(2.5, 8), Q, X; p = 20, im = 8, kw...), T)
+    u_def = u()
+    @test norm(u_def - u(sph_tol = 6.0)) / norm(u_def) < 1e-12
+    @test norm(u_def - u(sph_tol = 4.0)) / norm(u_def) > 1e-4
+end

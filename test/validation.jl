@@ -18,7 +18,7 @@
     @test_throws ArgumentError eval_exterior_pot(sol, reshape([0.0, 0, Inf], 3, 1))
     for kw in ((gmres_tol = NaN,), (gmres_tol = Inf,), (gmres_tol = 0.0,),
                (source_tol = NaN,), (source_tol = Inf,), (source_tol = 0.0,), (source_tol = -1.0,),
-               (sph_tol = NaN,), (sph_tol = Inf,), (sph_tol = 0.0,), (sph_tol = -1.0,),
+               (sph_tol = NaN,), (sph_tol = 0.0,), (sph_tol = -1.0,),
                (fmm_iprec = -3,), (fmm_iprec = 6,))
         @test_throws ArgumentError hybrid_solve(C, [1.0], [2.5], [1.0], X; p = 6, kw...)
     end

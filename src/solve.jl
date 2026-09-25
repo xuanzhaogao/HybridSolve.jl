@@ -52,7 +52,7 @@ function _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol,
     im ≥ 2 || throw(ArgumentError("im must be ≥ 2"))
     isfinite(gmres_tol) && gmres_tol > 0 || throw(ArgumentError("gmres_tol must be finite and positive"))
     isfinite(source_tol) && source_tol > 0 || throw(ArgumentError("source_tol must be finite and positive"))
-    isfinite(sph_tol) && sph_tol > 0 || throw(ArgumentError("sph_tol must be finite and positive"))
+    !isnan(sph_tol) && sph_tol > 0 || throw(ArgumentError("sph_tol must be positive (Inf = translate every sphere pair)"))
     fmm_iprec in -2:5 || throw(ArgumentError("fmm_iprec must be in -2:5"))
     for i in 1:ns, j in i+1:ns
         norm(centers[i, :] - centers[j, :]) > radii[i] + radii[j] ||
@@ -71,7 +71,7 @@ end
 
 """
     hybrid_solve(centers, radii, eps_r, charges, charge_pos; p = 20, im = 6, gmres_tol = 1e-12,
-                 fmm_iprec = 5, source_tol = 4.0, sph_tol = 4.0, verbose = false) -> HybridSolution
+                 fmm_iprec = 5, source_tol = 4.0, sph_tol = Inf, verbose = false) -> HybridSolution
 
 Solve the multi-sphere dielectric problem (exterior permittivity 1) with HybridMD's
 image-charge + spherical-harmonic hybrid method. `centers` is `ns × 3`, `charge_pos` is `3 × nq`.
@@ -79,14 +79,17 @@ image-charge + spherical-harmonic hybrid method. `centers` is `ns × 3`, `charge
 The problem is nondimensionalised before the call into HybridMD (lengths by `maximum(radii)`,
 charges by `maximum(abs, charges)`), so results scale exactly with the inputs. `gmres_tol` is
 HybridMD's **absolute** GMRES residual tolerance in those normalised units. `source_tol` and
-`sph_tol` are dimensionless (distance / radius). Configurations with very disparate radii are
+`sph_tol` are dimensionless (distance / radius). Sphere pairs whose centres are more than
+`sph_tol` radii apart skip upstream's multipole-to-local translation, i.e. their mutual
+polarisation is dropped (a speed cut-off from the MD code, ~1e-3 error for an 8-sphere cube
+at `sph_tol = 4`); the default `Inf` translates every pair. Configurations with very disparate radii are
 normalised by the largest one only, so small spheres may still see a loose effective tolerance.
 Throws `ErrorException` if GMRES fails or the result contains non-finite values.
 """
 function hybrid_solve(centers::AbstractMatrix{<:Real}, radii::AbstractVector{<:Real}, eps_r::AbstractVector{<:Real},
                       charges::AbstractVector{<:Real}, charge_pos::AbstractMatrix{<:Real};
                       p::Integer = 20, im::Integer = 6, gmres_tol::Real = 1e-12, fmm_iprec::Integer = 5,
-                      source_tol::Real = 4.0, sph_tol::Real = 4.0, verbose::Bool = false)
+                      source_tol::Real = 4.0, sph_tol::Real = Inf, verbose::Bool = false)
     _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol, fmm_iprec, source_tol, sph_tol)
     _check_library()
     C = Matrix{Float64}(centers); R = Vector{Float64}(radii); E = Vector{Float64}(eps_r)

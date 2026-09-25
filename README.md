@@ -132,6 +132,13 @@ A target on or inside a sphere, or with a non-finite coordinate, raises an
 knobs, plus `gmres_tol`, `fmm_iprec`, `source_tol`, `sph_tol` passed straight
 through to HybridMD.
 
+- **Leave `sph_tol` at its default `Inf`.** Upstream skips the
+  multipole-to-local translation for sphere pairs whose centres are more than
+  `sph_tol` radii apart, dropping their mutual polarisation. HybridMD's own
+  value of 4 gives a `3.6e-3` error for an 8-sphere cube at `1a` gaps (the
+  face-diagonal pairs are `4.24a` apart); `sph_tol ≥ 6` or `Inf` agrees with
+  converged `LaplaceMFS.jl` to `1e-13` there.
+
 - **`p` limits tight sphere–sphere gaps; `im` limits charges close to a
   sphere surface.** Sphere–sphere polarisation lives in the per-sphere
   spherical-harmonic expansion, while the Kelvin/line images only represent
