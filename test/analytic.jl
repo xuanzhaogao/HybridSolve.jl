@@ -37,3 +37,24 @@ end
     # eps_r = 1 is invisible
     @test single_sphere_pointcharge_exterior(t, zeros(3), a, 1.0, q, [0.0, 0.0, 1.5])[1] == 0.0
 end
+
+@testset "analytic series argument validation" begin
+    a, eps_r, q = 1.0, 2.5, 1.0
+    c = zeros(3)
+    X_out = [0.0, 0.0, 2.0]   # |X - c| = 2.0 > a, valid charge position
+    X_in = [0.0, 0.0, 0.3]    # |X - c| = 0.3 < a, invalid charge position
+
+    # exterior: target must be outside the sphere
+    t_in = reshape([0.0, 0.0, 0.5], 3, 1)   # ρ = 0.5 < a
+    @test_throws ArgumentError single_sphere_pointcharge_exterior(t_in, c, a, eps_r, q, X_out)
+    # exterior: charge must be outside the sphere
+    t_out = reshape([0.0, 0.0, 1.5], 3, 1)  # ρ = 1.5 > a
+    @test_throws ArgumentError single_sphere_pointcharge_exterior(t_out, c, a, eps_r, q, X_in)
+
+    # interior: target must be inside the sphere
+    @test_throws ArgumentError single_sphere_pointcharge_interior(t_out, c, a, eps_r, q, X_out)
+    # interior: charge must be outside the sphere (regression: d=0.3 < a=1, ρ=0.6 < a=1
+    # previously returned q/(4π·0.3) silently instead of throwing)
+    t_reg = reshape([0.0, 0.0, 0.6], 3, 1)
+    @test_throws ArgumentError single_sphere_pointcharge_interior(t_reg, c, a, eps_r, q, X_in)
+end

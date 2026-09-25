@@ -1,4 +1,7 @@
-_legendre_nmax(ratio) = min(20000, ceil(Int, log(1e-18) / log(ratio)) + 10)
+function _legendre_nmax(ratio)
+    r = log(1e-18) / log(ratio)
+    isfinite(r) ? min(20000, ceil(Int, min(r, 20000.0)) + 10) : 20010
+end
 
 function _series_geometry(t, center, charge_pos)
     rt = t .- center
@@ -41,6 +44,7 @@ function single_sphere_pointcharge_interior(targets::AbstractMatrix{Float64}, ce
     for j in axes(targets, 2)
         ρ, d, cθ = _series_geometry(view(targets, :, j), center, charge_pos)
         ρ < a || throw(ArgumentError("target $j is not inside the sphere"))
+        d > a || throw(ArgumentError("charge is not outside the sphere"))
         if ρ == 0
             out[j] = q / (4π * d)
             continue
