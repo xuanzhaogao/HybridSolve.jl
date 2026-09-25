@@ -42,10 +42,14 @@ read the status without a patch. `hs_solve` returns 2 whenever
 
 ## Notes for callers of the shim
 
-- After the solve, upstream multiplies `Bknm` in place by `sqrtk[n] = √(2n+1)`
-  (around line 600, "rescale"). `hs_copy_results` therefore returns the
-  **rescaled** coefficients, stored as `[sphere][m+p][n]` with `n` fastest.
-  Entries with `|m| > n` are not solution coefficients.
+- Upstream multiplies `Bknm` in place by `sqrtk[n] = √(2n+1)` for its FMM step
+  (around line 600, "rescale"), then divides that factor back out before the
+  energy block (≈ lines 730–736, "un-rescale"). By the time `hs_solve`
+  returns, `Bknm` is therefore already back in the plain `sht`/`ssheval`
+  convention (no extra `√(2n+1)`), and `hs_copy_results` copies it as-is,
+  stored as `[sphere][m+p][n]` with `n` fastest. Entries with `|m| > n` are
+  not solution coefficients (they still hold GMRES's initial guess and are
+  never written back).
 - Every `hs_solve` call allocates fresh global arrays (`allocate_arrays`,
   `allocate_dynamic`, and the `iter_indicator==0` blocks upstream) and never
   frees the previous ones, so each solve leaks memory in proportion to the
