@@ -64,3 +64,21 @@ end
     @test maximum(u) - minimum(u) < 1e-6 * maximum(abs.(u))
     @test all(isfinite, u) && maximum(abs.(u)) > 0
 end
+
+# 200 charges within source_tol of both spheres give 2412 images, so imcount + N and
+# M·ntheta·nphi = 2·(2p)² both exceed upstream's FMM_thresh = 2000 and the FMM path runs.
+# The response is linear, so it must equal the superposition of single-charge (direct-sum) solves.
+@testset "FMM path matches superposition of single-charge solves" begin
+    C = [0.0 0.0 -1.25; 0.0 0.0 1.25]
+    nq = 200; gold = π * (3 - sqrt(5))
+    X = reduce(hcat, [begin z = 1 - 2(k - 0.5) / nq; r = sqrt(1 - z^2)
+                          2.5 .* [r * cos(gold * k), r * sin(gold * k), z] end for k in 1:nq])
+    Q = [cos(1.7k) for k in 1:nq]
+    T = [3.0 0.0 -2.0 0.5; 0.0 3.2 1.0 0.3; 0.0 1.0 -3.5 0.0]
+    sol = hybrid_solve(C, [1.0, 1.0], [2.5, 4.0], Q, X; p = 20, im = 6)
+    @test length(sol.image_q) + nq + 2 ≥ 2000
+    u = eval_exterior_pot(sol, T)
+    ref = sum(Q[k] .* eval_exterior_pot(hybrid_solve(C, [1.0, 1.0], [2.5, 4.0], [1.0], X[:, k:k]; p = 20, im = 6), T)
+              for k in 1:nq)
+    @test norm(u - ref) / norm(ref) < 1e-11   # measured 1.3e-12
+end

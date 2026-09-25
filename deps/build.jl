@@ -9,7 +9,7 @@ function build()
     rm(BUILD; force = true, recursive = true)
     cp(joinpath(DEPS, "upstream"), BUILD)
     for p in sort(filter(endswith(".patch"), readdir(joinpath(DEPS, "patches"); join = true)))
-        run(`patch -p1 -d $BUILD -i $p`)
+        run(`patch --batch --forward -p1 -d $BUILD -i $p`)
     end
     cp(joinpath(DEPS, "shim", "hybridsolve_capi.cpp"), joinpath(BUILD, "hybridsolve_capi.cpp"))
     objs = String[]

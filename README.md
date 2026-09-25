@@ -75,9 +75,23 @@ there against the exact Legendre series to within `1e-9` relative error.
 knobs, plus `gmres_tol`, `fmm_iprec`, `source_tol`, `sph_tol` passed straight
 through to HybridMD.
 
-- **`im` is the limiting parameter** in practice: image expansions converge
-  geometrically, but slowly at small sphere–sphere or charge–sphere gaps.
-  Raising `p` past what `im` can resolve does not help.
+- **`p` limits tight sphere–sphere gaps; `im` limits charges close to a
+  sphere surface.** Sphere–sphere polarisation lives in the per-sphere
+  spherical-harmonic expansion, while the Kelvin/line images only represent
+  each charge's response near the sphere it is imaged in. Measured at a
+  `0.05a` sphere–sphere gap (the reference geometry below, max abs error vs
+  converged `LaplaceMFS.jl`): `p = 20` gives `2.75e-9` at both `im = 8` and
+  `im = 16` (raising `im` does nothing), while `p = 40, im = 8` gives
+  `3.9e-13`. Conversely, for one unit sphere with a charge at `1.05a`
+  (`p = 20`), the relative error vs the analytic series is `1.7e-5` at
+  `im = 4`, `3.6e-12` at `im = 8` and `2.3e-15` at `im = 12`.
+- Inputs are nondimensionalised (lengths by `maximum(radii)`, charges by
+  `maximum(abs, charges)`) before HybridMD is called, because upstream GMRES
+  stops on an **absolute** residual: `gmres_tol` is that absolute tolerance in
+  normalised units, and results scale exactly (potential `∝ q/L`, energy
+  `∝ q²/L`) with the inputs. Only the largest radius sets `L`, so a
+  configuration with very disparate radii may still see a loose effective
+  tolerance on the small spheres.
 - The precision table shipped with HybridMD (mapping `fmm_iprec` to a decimal
   digit count) is not used to size `p`/`im`/tolerances here; treat it as
   informational only and validate against `single_sphere_pointcharge_exterior`
@@ -94,8 +108,8 @@ through to HybridMD.
   (`deps/patches/README.md`: a stride-4 indexing bug and a missing `√(2n+1)`
   factor) and is disabled (`force_compute = 0`); it is out of scope to fix.
 - **No uniform-field excitation**, no charged spheres, no complex permittivity
-  — only point charges in a dielectric exterior driving grounded/floating
-  dielectric spheres.
+  — only point charges in a dielectric exterior driving uncharged dielectric
+  spheres.
 - **Not thread-safe.** HybridMD keeps all solver state in global variables, so
   concurrent calls would corrupt each other; every call into the library is
   serialised by a single `ReentrantLock` (`HybridSolve.LIB_LOCK`). Concurrent
@@ -103,8 +117,12 @@ through to HybridMD.
   rather than racing.
 - **Each call leaks memory.** Upstream reallocates its per-solve global arrays
   on every call and never frees the previous ones (this package's patch 3
-  removes the largest such leak, an unused `O(M²·p⁴)` initialization block,
-  but the residual per-call allocation of size `O(ns·p² + N²)` remains). A
+  removes the largest such leak, an unused `O(M²·p⁴)` initialization block).
+  The residual per-call allocation is dominated by the per-sphere-pair
+  `mpole` and `local` arrays, `ns²·(2p+1)·(p+1)` complex entries each, plus
+  `O(p³)` for the `ynm` tables, `ns·p²` for the target/field grids and
+  `O(ns·N·im)` image-source buffers — measured at about 15 MB per call at
+  `ns = 8`, `p = 40`. A
   long-running process issuing many solves will grow its memory footprint
   roughly linearly in the number of solves; restart the process periodically
   if you need many solves at large `p`/`ns`.

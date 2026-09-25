@@ -69,10 +69,15 @@
 - Prefer deterministic numeric checks with explicit tolerances (`atol`/`rtol`)
   and relative-error assertions; do not loosen a tolerance to make a test pass
   without recording the measured value and the reason.
-- `im` (image count), not `p` (spherical-harmonic order), is usually the
-  accuracy-limiting parameter at small sphere–sphere gaps; when adding a
-  tight-gap regression, check convergence in `im` before assuming `p` is the
-  knob to raise.
+- `p` (spherical-harmonic order) limits tight sphere–sphere gaps; `im` (image
+  count) limits charges close to a sphere surface. At a `0.05a` gap, `p = 20`
+  stalls at `2.75e-9` for both `im = 8` and `im = 16`, and `p = 40, im = 8`
+  reaches `3.9e-13`; for a charge at `1.05a` from one sphere, `im = 4` gives
+  `1.7e-5` and `im = 8` gives `3.6e-12`. When adding a regression, check
+  convergence in both knobs before choosing values.
+- Results must scale exactly with the inputs (potential `∝ q/L`, energy
+  `∝ q²/L`; see `test/scaling.jl`): `hybrid_solve` nondimensionalises before
+  the `ccall` because upstream GMRES uses an absolute residual.
 
 ## Commit & Pull Request Guidelines
 - Short, imperative commit messages.

@@ -63,3 +63,14 @@ end
     end
     @test isempty(out)
 end
+
+@testset "verbose = true prints HybridMD output" begin
+    out = mktemp() do path, io
+        redirect_stdout(io) do
+            hybrid_solve(zeros(1, 3), [1.0], [2.5], [1.0], reshape([0.0, 0, 2.0], 3, 1); p = 6, verbose = true)
+            Libc.flush_cstdio()
+        end
+        close(io); read(path, String)
+    end
+    @test !isempty(out)
+end
