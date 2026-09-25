@@ -33,4 +33,26 @@
     end
     @test raw_solve(1e-12, 1) == 3     # im < 2 rejected
     @test raw_solve(1e-40, 6) == 2     # unreachable tolerance: GMRES reports maxiter exceeded
+    # after a failed solve (rc = 2) the result accessors refuse
+    sizes() = ccall((:hs_result_sizes, HybridSolve.libhybrid), Cint, (Ref{Cint}, Ref{Cint}, Ref{Cint}),
+                    Ref{Cint}(0), Ref{Cint}(0), Ref{Cint}(0))
+    @test sizes() == 3
+    copy_rc = ccall((:hs_copy_results, HybridSolve.libhybrid), Cint,
+                    (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Cint}, Ptr{Float64}, Ref{Float64}),
+                    imx, imy, imz, imq, imsph, bknm, energy)
+    @test copy_rc == 3
+
+    # in a fresh process, before any solve, the accessors return 3 instead of segfaulting
+    code = """
+        using HybridSolve
+        f = HybridSolve.libhybrid
+        a = Ref{Cint}(0); b = Ref{Cint}(0); c = Ref{Cint}(0)
+        rc1 = ccall((:hs_result_sizes, f), Cint, (Ref{Cint}, Ref{Cint}, Ref{Cint}), a, b, c)
+        v = zeros(1); iv = zeros(Cint, 1); e = Ref(0.0)
+        rc2 = ccall((:hs_copy_results, f), Cint,
+                    (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Cint}, Ptr{Float64}, Ref{Float64}),
+                    v, v, v, v, iv, v, e)
+        exit(rc1 == 3 && rc2 == 3 ? 0 : 1)
+        """
+    @test success(run(ignorestatus(`$(Base.julia_cmd()) --startup-file=no --project=$(pkgdir(HybridSolve)) -e $code`)))
 end

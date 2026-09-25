@@ -21,6 +21,10 @@ extern struct ITLIN_INFO *info;
 /* Per-sphere interior permittivities, read by patch 0002. */
 double *hs_eps_in = NULL;
 
+/* 1 only after an hs_solve that returned 0; guards the result accessors, whose
+   globals are NULL at process start and stale after a failed solve. */
+static int hs_have_solution = 0;
+
 /* Copied verbatim from upstream main.cpp: allocate_dynamic() (main.cpp:338-528,
    HybridMD@1f87baf). main.cpp is not vendored because it contains the MD driver. */
 static void hs_allocate_dynamic()
@@ -222,6 +226,7 @@ extern "C" int hs_solve(int ns, const double *centers, const double *radii, cons
                         int p_, int im_, double gmres_tol, int fmm_iprec,
                         double source_tol, double sph_tol, int verbose)
 {
+    hs_have_solution = 0;
     if (ns < 1 || nq < 1 || p_ < 1 || im_ < 2) return 3;
     if (!centers || !radii || !eps_r || !qpos || !qv) return 3;
     N = nq + ns; Ntype = 2;
@@ -262,6 +267,7 @@ extern "C" int hs_solve(int ns, const double *centers, const double *radii, cons
     /* gmres() sets info->rcode: 0 converged, 2 maxiter exceeded, other nonzero
        values are allocation/argument/QR failures (GMRES/gmres.c header). */
     if (info == NULL || info->rcode != 0) return 2;
+    hs_have_solution = 1;
     return 0;
 }
 
@@ -278,6 +284,7 @@ static int hs_count_images()
 
 extern "C" int hs_result_sizes(int *nimages, int *p_out, int *ns_out)
 {
+    if (!hs_have_solution) return 3;
     *nimages = hs_count_images(); *p_out = p; *ns_out = M;
     return 0;
 }
@@ -285,6 +292,7 @@ extern "C" int hs_result_sizes(int *nimages, int *p_out, int *ns_out)
 extern "C" int hs_copy_results(double *ox_, double *oy_, double *oz_, double *oq_, int *osph,
                                double *bknm, double *energy)
 {
+    if (!hs_have_solution) return 3;
     int n = hs_count_images();
     for (int i = 0; i < n; i++) {
         ox_[i] = imx[i]; oy_[i] = imy[i]; oz_[i] = imz[i]; oq_[i] = imq[i];

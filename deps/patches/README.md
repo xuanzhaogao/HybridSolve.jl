@@ -50,3 +50,6 @@ read the status without a patch. `hs_solve` returns 2 whenever
   `allocate_dynamic`, and the `iter_indicator==0` blocks upstream) and never
   frees the previous ones, so each solve leaks memory in proportion to the
   problem size.
+- `hs_result_sizes` and `hs_copy_results` return 3 and read no solver globals
+  unless the most recent `hs_solve` returned 0. The result globals are NULL at
+  process start and stale after a failed solve.
