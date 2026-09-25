@@ -8,6 +8,10 @@ const SUBDIRS = ["GMRES", "JacobiGaussQuad", "FMM3dlib", "sht"]
 function build()
     rm(BUILD; force = true, recursive = true)
     cp(joinpath(DEPS, "upstream"), BUILD)
+    # An installed package's files are read-only; the working copy must be patchable.
+    for (root, _, files) in walkdir(BUILD), f in files
+        chmod(joinpath(root, f), 0o644)
+    end
     for p in sort(filter(endswith(".patch"), readdir(joinpath(DEPS, "patches"); join = true)))
         run(`patch --batch --forward -p1 -d $BUILD -i $p`)
     end
