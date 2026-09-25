@@ -62,23 +62,18 @@ using HybridSolve, Printf
 
 # Two unit spheres along z with a 1a gap, eps_r = 2.5 and 4.0,
 # and two point charges outside both spheres.
-centers    = [0.0 0.0 0.0;          # ns × 3, one row per sphere
-              0.0 0.0 3.0]
+centers    = [0.0 0.0 0.0; 0.0 0.0 3.0]    # ns × 3, one row per sphere
 radii      = [1.0, 1.0]
 eps_r      = [2.5, 4.0]
 charges    = [1.0, -0.5]
-charge_pos = [0.0  1.8;             # 3 × nq, one column per charge
-              0.0  0.0;
-             -2.0  1.5]
+charge_pos = [0.0 1.8; 0.0 0.0; -2.0 1.5]  # 3 × nq, one column per charge
 
 sol = hybrid_solve(centers, radii, eps_r, charges, charge_pos; p = 20, im = 8)
 
 # 6 points on the x axis plus 3 others: a 3 × 9 target matrix.
 xs = range(1.2, 4.0; length = 6)
 line = vcat(xs', zeros(1, 6), zeros(1, 6))
-extra = [0.0  1.3 -1.4;
-         0.0  0.0  0.0;
-        -1.6  0.7  4.5]
+extra = [0.0 1.3 -1.4; 0.0 0.0 0.0; -1.6 0.7 4.5]
 targets = hcat(line, extra)
 
 u = eval_exterior_pot(sol, targets)  # scattered potential, length 9
