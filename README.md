@@ -51,6 +51,68 @@ ref = single_sphere_pointcharge_exterior(targets, vec(center), a, eps_r, q, vec(
 This is the same configuration exercised in `test/single_sphere.jl`, checked
 there against the exact Legendre series to within `1e-9` relative error.
 
+### Several spheres, charges and target points
+
+`hybrid_solve` does the expensive work once; `eval_exterior_pot` can then be
+called on any number of target sets. Targets are the columns of a `3 × ntrg`
+matrix and must lie strictly outside every sphere.
+
+```julia
+using HybridSolve, Printf
+
+# Two unit spheres along z with a 1a gap, eps_r = 2.5 and 4.0,
+# and two point charges outside both spheres.
+centers    = [0.0 0.0 0.0;          # ns × 3, one row per sphere
+              0.0 0.0 3.0]
+radii      = [1.0, 1.0]
+eps_r      = [2.5, 4.0]
+charges    = [1.0, -0.5]
+charge_pos = [0.0  1.8;             # 3 × nq, one column per charge
+              0.0  0.0;
+             -2.0  1.5]
+
+sol = hybrid_solve(centers, radii, eps_r, charges, charge_pos; p = 20, im = 8)
+
+# 6 points on the x axis plus 3 others: a 3 × 9 target matrix.
+xs = range(1.2, 4.0; length = 6)
+line = vcat(xs', zeros(1, 6), zeros(1, 6))
+extra = [0.0  1.3 -1.4;
+         0.0  0.0  0.0;
+        -1.6  0.7  4.5]
+targets = hcat(line, extra)
+
+u = eval_exterior_pot(sol, targets)  # scattered potential, length 9
+
+# eval_exterior_pot excludes the incident field; add it for the total.
+inc(t) = sum(charges[k] / (4π * sqrt(sum(abs2, t .- charge_pos[:, k]))) for k in eachindex(charges))
+φ = [u[j] + inc(targets[:, j]) for j in axes(targets, 2)]
+
+@printf("%8s %8s %8s   %14s %14s\n", "x", "y", "z", "u_scattered", "phi_total")
+for j in axes(targets, 2)
+    @printf("%8.3f %8.3f %8.3f   %14.6e %14.6e\n", targets[:, j]..., u[j], φ[j])
+end
+@printf("energy = %.12e\n", electrostatic_energy(sol))
+```
+
+Output:
+
+```
+       x        y        z      u_scattered      phi_total
+   1.200    0.000    0.000     2.581630e-03   1.207158e-02
+   1.760    0.000    0.000     1.159963e-03   4.513507e-03
+   2.320    0.000    0.000     6.856271e-04   1.602711e-03
+   2.880    0.000    0.000     4.660341e-04   1.634745e-03
+   3.440    0.000    0.000     3.417817e-04   2.437891e-03
+   4.000    0.000    0.000     2.624769e-04   3.113567e-03
+   0.000    0.000   -1.600    -4.471257e-03   1.833728e-01
+   1.300    0.000    0.700     3.334705e-03  -1.228592e-02
+  -1.400    0.000    4.500    -9.393742e-05   2.803240e-03
+energy = -1.189160725743e-02
+```
+
+A target on or inside a sphere, or with a non-finite coordinate, raises an
+`ArgumentError`; filter such points out first when evaluating on a grid.
+
 ## Conventions (identical to `LaplaceMFS.jl`)
 
 - `centers` is `ns × 3`; `charge_pos` and `targets` are `3 × n`. Per-sphere
