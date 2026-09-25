@@ -1,0 +1,11 @@
+--- a/Coulomb_accelerations_Hybrid.cpp
++++ b/Coulomb_accelerations_Hybrid.cpp
+@@ -92,7 +92,7 @@
+ /*before MD starts, first initialize*/
+ 
+ 	if(iter_indicator==0)
+-		initialization();
++		; /* initialization(); HybridSolve: dead allocations, see deps/patches/README.md */
+ 
+ 	/*allocate the GMRES solver options*/
+ 

@@ -1,0 +1,26 @@
+--- a/Coulomb_accelerations_Hybrid.cpp
++++ b/Coulomb_accelerations_Hybrid.cpp
+@@ -6,6 +6,7 @@
+ #include <stdlib.h>
+ #include <time.h>
+ #include "itlin.h"
++extern double *hs_eps_in; /* HybridSolve: per-sphere interior permittivities, set by the C shim */
+ //#include<omp.h>
+ 
+ /*parameters and functions for the iterative GMRES method.*/
+@@ -153,14 +154,7 @@
+ 	{
+ 		epsi_s=epsi_ion;
+ 
+-		for(i=0;i<N_col1;i++)
+-		{
+-            epsi_i[i]=ei1;
+-        }
+-        for(i=N_col1;i<N_col;i++)
+-        {
+-            epsi_i[i]=ei2;
+-        }
++		for(i=0;i<N_col;i++) epsi_i[i]=hs_eps_in[i];
+ 	}
+ 
+ 	if(iter_indicator==0)

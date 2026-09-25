@@ -1,0 +1,11 @@
+--- a/Coulomb_accelerations_Hybrid.cpp
++++ b/Coulomb_accelerations_Hybrid.cpp
+@@ -1224,7 +1224,7 @@
+ 
+ if(p>=5)
+ {
+-	fz+=srcDenarr[dims*s+25]*(-1.875*x2*x2*x2-1.875*y2*y2*y2+、
++	fz+=srcDenarr[dims*s+25]*(-1.875*x2*x2*x2-1.875*y2*y2*y2+\
+ 	33.75*y2*y2*z2-45.*y2*z2*z2 + 6.*z2*z2*z2+x2*x2*(-5.625*y2 + 33.75*z2)+\
+ 	x2*(-5.625*y2*y2 + 67.5*y2*z2 -45.*z2*z2))*invR13;
+ 
