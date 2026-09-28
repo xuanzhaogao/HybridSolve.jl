@@ -1,0 +1,25 @@
+--- a/Coulomb_accelerations_Hybrid.cpp
++++ b/Coulomb_accelerations_Hybrid.cpp
+@@ -7,6 +7,7 @@
+ #include <time.h>
+ #include "itlin.h"
+ extern double *hs_eps_in; /* HybridSolve: per-sphere interior permittivities, set by the C shim */
++extern double hs_efield[3]; /* HybridSolve: uniform external field, u_inc = -E.x, set by the C shim */
+ //#include<omp.h>
+ 
+ /*parameters and functions for the iterative GMRES method.*/
+@@ -468,6 +469,14 @@
+ 
+ //calling sshcoef to obtain all the harmonic coefficients around each spheres.
+ //		tstart_sht = clock();
++	/* HybridSolve: add the uniform external field's potential -E.x on every sphere grid.
++	   It has no images; its constant part only reaches the k = 0 rows, which vanish. */
++	for(i=0;i<M;i++)
++	for(j=0;j<ntheta;j++)
++	for(k=0;k<nphi;k++)
++		fgrid[i][j][k].real-=hs_efield[0]*Mnodes[i][j][k][0]+hs_efield[1]*Mnodes[i][j][k][1]\
++			+hs_efield[2]*Mnodes[i][j][k][2];
++
+ 	for(i=0;i<M;i++)
+ 	sshcoef_(fgrid[i][0],&p,&nphi,&ntheta,ynm[0][0],ycoef[i][0]);
+ 	//tfinish_sht = clock();

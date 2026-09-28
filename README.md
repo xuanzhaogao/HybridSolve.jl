@@ -121,7 +121,14 @@ A target on or inside a sphere, or with a non-finite coordinate, raises an
   qualify with `HybridSolve.eval_exterior_pot` /
   `LaplaceMFS.eval_exterior_pot` if both are loaded in the same session.
 - `electrostatic_energy(sol)` is the total electrostatic energy: the free-pair
-  Coulomb energy of the point charges plus `½ Σ q_k u_scat(X_k)`.
+  Coulomb energy of the point charges plus `½ Σ q_k u_scat(X_k)`. It is not
+  defined with an external field and throws in that case.
+- A uniform external field is passed as `hybrid_solve(...; efield = [Ex, Ey, Ez])`,
+  with incident potential `u_inc = -E·x` (LaplaceMFS's `multispheres_uniform_rhs`
+  convention). It may be combined with point charges, or used alone with
+  `charges = Float64[]` and `charge_pos = zeros(3, 0)`. A single sphere reproduces
+  the dipole response `α a³ E·r / ρ³` to 1e-11; nine spheres agree with
+  LaplaceMFS.jl to 1.5e-12 at `M = 1302`.
 - Real `Float64` only. Charges and targets must be strictly outside every
   sphere; spheres must not overlap or touch.
 
@@ -171,9 +178,8 @@ through to HybridMD.
 - **No forces.** The upstream force-computation path has known bugs
   (`deps/patches/README.md`: a stride-4 indexing bug and a missing `√(2n+1)`
   factor) and is disabled (`force_compute = 0`); it is out of scope to fix.
-- **No uniform-field excitation**, no charged spheres, no complex permittivity
-  — only point charges in a dielectric exterior driving uncharged dielectric
-  spheres.
+- No charged spheres and no complex permittivity: point charges and/or a
+  uniform external field drive uncharged dielectric spheres.
 - **Not thread-safe.** HybridMD keeps all solver state in global variables, so
   concurrent calls would corrupt each other; every call into the library is
   serialised by a single `ReentrantLock` (`HybridSolve.LIB_LOCK`). Concurrent

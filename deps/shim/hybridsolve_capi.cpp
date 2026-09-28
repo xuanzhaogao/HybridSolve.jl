@@ -1,7 +1,7 @@
 // HybridSolve C ABI over the vendored HybridMD solver. GPL-3.0.
 //
-// Exported ABI (version 1), see src/libhybrid.jl:
-//   hs_abi_version, hs_solve, hs_result_sizes, hs_copy_results, hs_ssheval
+// Exported ABI (version 2), see src/libhybrid.jl:
+//   hs_abi_version, hs_set_external_field, hs_solve, hs_result_sizes, hs_copy_results, hs_ssheval
 //
 // The solver keeps all state in globals (MDpara.h), so calls are not reentrant;
 // the Julia side serialises them with HybridSolve.LIB_LOCK.
@@ -20,6 +20,10 @@ extern struct ITLIN_INFO *info;
 
 /* Per-sphere interior permittivities, read by patch 0002. */
 double *hs_eps_in = NULL;
+
+/* Uniform external field in HybridMD units (potential -E.x added to the RHS grids), read by
+   patch 0004. Set by hs_set_external_field before every hs_solve; zero means no field. */
+double hs_efield[3] = {0.0, 0.0, 0.0};
 
 /* 1 only after an hs_solve that returned 0; guards the result accessors, whose
    globals are NULL at process start and stale after a failed solve. */
@@ -219,7 +223,12 @@ static void hs_allocate_dynamic()
     wlege=new double[10*(p+2)*(p+2)];
 }
 
-extern "C" int hs_abi_version(void) { return 1; }
+extern "C" int hs_abi_version(void) { return 2; }
+
+extern "C" void hs_set_external_field(const double *E)
+{
+    for (int d = 0; d < 3; d++) hs_efield[d] = E ? E[d] : 0.0;
+}
 
 extern "C" int hs_solve(int ns, const double *centers, const double *radii, const double *eps_r,
                         int nq, const double *qpos, const double *qv,
@@ -227,8 +236,9 @@ extern "C" int hs_solve(int ns, const double *centers, const double *radii, cons
                         double source_tol, double sph_tol, int verbose)
 {
     hs_have_solution = 0;
-    if (ns < 1 || nq < 1 || p_ < 1 || im_ < 2) return 3;
-    if (!centers || !radii || !eps_r || !qpos || !qv) return 3;
+    /* nq = 0 is allowed: a uniform external field alone (hs_set_external_field) drives the solve */
+    if (ns < 1 || nq < 0 || p_ < 1 || im_ < 2) return 3;
+    if (!centers || !radii || !eps_r || (nq > 0 && (!qpos || !qv))) return 3;
     N = nq + ns; Ntype = 2;
     N_ion = nq; N_ion1 = nq; N_ion2 = 0;
     N_col = ns; M = ns; N_col1 = ns; N_col2 = 0;

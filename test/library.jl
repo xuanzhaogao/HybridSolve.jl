@@ -1,6 +1,6 @@
 @testset "shared library" begin
     @test isfile(HybridSolve.libhybrid)
-    @test HybridSolve.abi_version() == 1
+    @test HybridSolve.abi_version() == 2
     # raw smoke solve: one unit sphere, one charge at z = 1.5
     centers = [0.0, 0.0, 0.0]; radii = [1.0]; eps = [10.0]
     qpos = [0.0, 0.0, 1.5]; qv = [1.0]

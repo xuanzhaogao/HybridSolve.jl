@@ -12,6 +12,7 @@ earlier patches have been applied.
 | `0001-fix-cjk-comma.patch` | 1227 | replaces the full-width comma `、` (U+3001) at the end of the line with `\` | The stray character is a syntax error, so the file does not compile. It sits in the `p >= 5` branch of the force kernel, and the intended character is the line-continuation `\` used on the surrounding lines. |
 | `0002-per-sphere-epsilon.patch` | top of file; ≈151–164 | adds `extern double *hs_eps_in;` after the includes, and replaces the two loops `epsi_i[i]=ei1` (for `i < N_col1`) / `epsi_i[i]=ei2` (for `N_col1 ≤ i < N_col`) with `for(i=0;i<N_col;i++) epsi_i[i]=hs_eps_in[i];`. `epsi_s=epsi_ion;` is kept. | Upstream supports only two colloid species, each with its own permittivity. HybridSolve needs one permittivity per sphere, which the C shim stores in `hs_eps_in` (defined in `deps/shim/hybridsolve_capi.cpp`). |
 | `0003-skip-dead-initialization.patch` | ≈94 | replaces the body of `if(iter_indicator==0) initialization();` with an empty statement `;` followed by a comment. The empty statement keeps the `if` from capturing the next statement. | `initialization()` only allocates and fills arrays that the energy path never reads: `powerd`, `newpowerd`, `tempcoef`, `tempcoefimag`, `wquad`, `xquad`, `powerxquad`, `rotangle`. It is O(M²·p⁴) in memory and time, and it would leak on every solve. |
+| `0004-uniform-external-field.patch` | ≈10 and ≈469 | declares `extern double hs_efield[3]` (set by the shim's `hs_set_external_field`) and, just before `sshcoef_` turns the sphere-grid potential `fgrid` into harmonic coefficients, adds `-E·x` at every grid node `Mnodes`. | Adds a uniform external field to the right-hand side. The field has no image charges; its constant part only reaches the `k = 0` rows, which the RHS multiplies by `k = 0`, so the choice of origin is irrelevant. Zero field leaves the RHS unchanged. |
 
 ## Upstream behaviour that is deliberately not patched
 
@@ -54,6 +55,10 @@ read the status without a patch. `hs_solve` returns 2 whenever
   `allocate_dynamic`, and the `iter_indicator==0` blocks upstream) and never
   frees the previous ones, so each solve leaks memory in proportion to the
   problem size.
+- `hs_set_external_field(E)` sets the uniform field used by patch 0004 (HybridMD units:
+  potential `-E·x` is added to the RHS grids). It persists across calls, so set it before
+  every `hs_solve`; the Julia side always does. With a field, `nq = 0` point charges is
+  allowed. The printed energy covers point charges only.
 - `hs_result_sizes` and `hs_copy_results` return 3 and read no solver globals
   unless the most recent `hs_solve` returned 0. The result globals are NULL at
   process start and stale after a failed solve.

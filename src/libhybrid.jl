@@ -1,6 +1,6 @@
 const libhybrid = normpath(joinpath(@__DIR__, "..", "deps", "usr", "lib", "libhybridsolve.so"))
 const LIB_LOCK = ReentrantLock()
-const ABI_VERSION = 1
+const ABI_VERSION = 2
 const _ABI_CHECKED = Ref(false)
 
 const _DEPS_DIR = normpath(joinpath(@__DIR__, "..", "deps"))

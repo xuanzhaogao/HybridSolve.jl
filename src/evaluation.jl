@@ -53,4 +53,8 @@ end
 
 Total electrostatic energy (free-charge pair energy plus polarisation energy) in `1/(4π r)` units.
 """
-electrostatic_energy(sol::HybridSolution) = sol.energy_raw / (4π)
+function electrostatic_energy(sol::HybridSolution)
+    any(!iszero, sol.efield) &&
+        throw(ArgumentError("electrostatic_energy covers point charges only; it is not defined with an external field"))
+    return sol.energy_raw / (4π)
+end

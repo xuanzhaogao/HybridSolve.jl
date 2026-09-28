@@ -3,7 +3,7 @@
 
 Result of [`hybrid_solve`](@ref). Upstream GMRES stops on an *absolute* residual, so the solve is
 run on a nondimensionalised problem: lengths divided by `L = maximum(radii)`, charges by
-`Qs = maximum(abs, charges)` (`Qs = 1` if all charges are zero). `L` and `Qs` are stored.
+`Qs = max(maximum(abs, charges), 4π L² |efield|)` (`Qs = 1` if both are zero). `L` and `Qs` are stored.
 
 - `centers`, `radii`, `eps_r`, `charges`, `charge_pos`, `image_pos` and `energy_raw` are in the
   caller's (physical) units.
@@ -15,7 +15,8 @@ run on a nondimensionalised problem: lengths divided by `L = maximum(radii)`, ch
   is `Qs / L` times that sum. They follow the `sht`/`ssheval` convention (no extra `√(2n+1)`);
   entries with `|m| > n` are zero.
 - `energy_raw` is HybridMD's printed total electrostatic energy (HybridMD units), rescaled by
-  `Qs² / L`.
+  `Qs² / L`. It covers point charges only and is not meaningful when `efield` is nonzero.
+- `efield` is the uniform external field (physical units, `u_inc = -efield·x`), zero if none.
 """
 struct HybridSolution
     centers::Matrix{Float64}      # ns × 3
@@ -31,10 +32,12 @@ struct HybridSolution
     multipoles::Array{ComplexF64,3}   # (p+1) × (2p+1) × ns, n fastest, m = j - p - 1; scaled units
     energy_raw::Float64           # HybridMD printed total electrostatic energy, physical units
     L::Float64                    # length scale, maximum(radii)
-    Qs::Float64                   # charge scale, maximum(abs, charges) (1 if all zero)
+    Qs::Float64                   # charge scale, max(maximum(abs, charges), 4π L²|efield|) (1 if both zero)
+    efield::Vector{Float64}       # uniform external field, u_inc = -efield·x (zeros if none)
 end
 
-function _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol, fmm_iprec, source_tol, sph_tol)
+function _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol, fmm_iprec, source_tol, sph_tol,
+                   efield = zeros(3))
     size(centers, 2) == 3 || throw(DimensionMismatch("centers must be ns × 3"))
     ns = size(centers, 1)
     length(radii) == ns || throw(DimensionMismatch("length(radii) must equal ns = $ns"))
@@ -42,7 +45,10 @@ function _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol,
     size(charge_pos, 1) == 3 || throw(DimensionMismatch("charge_pos must be 3 × nq"))
     length(charges) == size(charge_pos, 2) || throw(DimensionMismatch("length(charges) must equal nq"))
     ns ≥ 1 || throw(ArgumentError("need at least one sphere"))
-    !isempty(charges) || throw(ArgumentError("need at least one charge"))
+    length(efield) == 3 || throw(DimensionMismatch("efield must be a 3-vector"))
+    all(isfinite, efield) || throw(ArgumentError("efield must be finite"))
+    !isempty(charges) || any(!iszero, efield) ||
+        throw(ArgumentError("need at least one charge or a nonzero efield"))
     for A in (centers, radii, eps_r, charges, charge_pos)
         all(isfinite, A) || throw(ArgumentError("inputs must be finite"))
     end
@@ -71,10 +77,13 @@ end
 
 """
     hybrid_solve(centers, radii, eps_r, charges, charge_pos; p = 20, im = 6, gmres_tol = 1e-12,
-                 fmm_iprec = 5, source_tol = 4.0, sph_tol = Inf, verbose = false) -> HybridSolution
+                 fmm_iprec = 5, source_tol = 4.0, sph_tol = Inf, efield = zeros(3),
+                 verbose = false) -> HybridSolution
 
 Solve the multi-sphere dielectric problem (exterior permittivity 1) with HybridMD's
 image-charge + spherical-harmonic hybrid method. `centers` is `ns × 3`, `charge_pos` is `3 × nq`.
+`efield` adds a uniform external field with incident potential `u_inc = -efield·x` (LaplaceMFS's
+convention); with a field the point charges may be empty (`Float64[]`, `zeros(3, 0)`).
 
 The problem is nondimensionalised before the call into HybridMD (lengths by `maximum(radii)`,
 charges by `maximum(abs, charges)`), so results scale exactly with the inputs. `gmres_tol` is
@@ -89,17 +98,24 @@ Throws `ErrorException` if GMRES fails or the result contains non-finite values.
 function hybrid_solve(centers::AbstractMatrix{<:Real}, radii::AbstractVector{<:Real}, eps_r::AbstractVector{<:Real},
                       charges::AbstractVector{<:Real}, charge_pos::AbstractMatrix{<:Real};
                       p::Integer = 20, im::Integer = 6, gmres_tol::Real = 1e-12, fmm_iprec::Integer = 5,
-                      source_tol::Real = 4.0, sph_tol::Real = Inf, verbose::Bool = false)
-    _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol, fmm_iprec, source_tol, sph_tol)
+                      source_tol::Real = 4.0, sph_tol::Real = Inf, efield::AbstractVector{<:Real} = zeros(3),
+                      verbose::Bool = false)
+    _validate(centers, radii, eps_r, charges, charge_pos, p, im, gmres_tol, fmm_iprec, source_tol, sph_tol, efield)
     _check_library()
     C = Matrix{Float64}(centers); R = Vector{Float64}(radii); E = Vector{Float64}(eps_r)
     Q = Vector{Float64}(charges); X = Matrix{Float64}(charge_pos)
     ns = size(C, 1); nq = length(Q)
     L = maximum(R)
-    Qs = maximum(abs, Q); Qs > 0 || (Qs = 1.0)
+    Ef = Vector{Float64}(efield)
+    # charge scale: largest charge, or the field's equivalent 4π L²|E| (upstream GMRES stops on an
+    # absolute residual, so the scaled right-hand side must be O(1) whatever drives it)
+    Qs = max(maximum(abs, Q; init = 0.0), 4π * L^2 * norm(Ef)); Qs > 0 || (Qs = 1.0)
     Ct = Matrix(permutedims(C)) ./ L   # 3 × ns, column-major = xyz per sphere
     Rn = R ./ L; Xn = X ./ L; Qn = Q ./ Qs
+    # u_inc = -E·x in 1/(4πr) units becomes -(4π L² E / Qs)·x_scaled in scaled HybridMD units
+    Es = (4π * L^2 / Qs) .* Ef
     lock(LIB_LOCK) do
+        ccall((:hs_set_external_field, libhybrid), Cvoid, (Ptr{Float64},), Es)
         rc = ccall((:hs_solve, libhybrid), Cint,
                    (Cint, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Cint, Ptr{Float64}, Ptr{Float64},
                     Cint, Cint, Cdouble, Cint, Cdouble, Cdouble, Cint),
@@ -129,6 +145,6 @@ function hybrid_solve(centers::AbstractMatrix{<:Real}, radii::AbstractVector{<:R
             all(isfinite, iq) && all(isfinite, B) ||
             error("HybridMD returned non-finite images, multipoles or energy")
         HybridSolution(C, R, E, Q, X, Int(p), Int(im), Matrix(permutedims(hcat(ix, iy, iz))) .* L, iq .* Qs,
-                       Int.(isph) .+ 1, B, en[] * (Qs^2 / L), L, Qs)
+                       Int.(isph) .+ 1, B, en[] * (Qs^2 / L), L, Qs, Ef)
     end
 end
